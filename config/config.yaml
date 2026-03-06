@@ -1,0 +1,70 @@
+proxy:
+  listen_addr: ":8080"
+  read_timeout: 30s
+  write_timeout: 120s
+  idle_timeout: 60s
+  max_concurrent: 1000
+  jwt_secret: "sentinel-demo-secret-key-change-in-production"
+  bypass_header: "X-Sentinel-Bypass"
+  bypass_secret: "sentinel-bypass-test-token"
+  backend_addr: "localhost:9090"
+  grace_period_sec: 300
+
+backend:
+  listen_addr: ":9090"
+  max_send_msg_size: 67108864  # 64MB
+  simulated_latency: 5ms
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+  pool_size: 50
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  window_size: 1h
+  blend_weight_window: 0.7       # Weight for recent average
+  blend_weight_lifetime: 0.3     # Weight for lifetime average
+
+threshold:
+  global_floor_bytes: 1048576       # 1MB minimum
+  burst_multiplier: 3.0
+  absolute_ceiling_bytes: 5242880    # 5MB hard cap
+  rate_anomaly_factor: 5.0           # 5x historical rate = anomaly
+  min_samples_for_avg: 3
+  min_rate_elapsed_ms: 500       # minimum ms before computing rate
+  base_throttle_delay_ms: 20     # base adaptive throttle delay
+  max_throttle_delay_ms: 500     # maximum throttle delay cap
+
+metrics:
+  enabled: true
+  listen_addr: ":9100"
+  path: "/metrics"
+
+policies:
+  endpoint_overrides:
+    /export:
+      ceiling_multiplier: 5.0
+      floor_multiplier: 3.0
+      burst_multiplier: 2.0
+      description: "Export endpoints have elevated limits"
+    /data:
+      ceiling_multiplier: 1.0
+      floor_multiplier: 1.0
+      burst_multiplier: 1.0
+      description: "Standard data endpoint"
+  role_multipliers:
+    admin: 5.0
+    analyst: 3.0
+    exporter: 10.0
+    user: 1.0
+  grace_violations:
+    violation_window_sec: 300
+    log_only_count: 1
+    throttle_count: 2
+    terminate_count: 3
+
+logging:
+  level: "info"
+  format: "json"
