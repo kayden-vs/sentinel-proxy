@@ -15,6 +15,7 @@ import (
 	"github.com/kayden-vs/sentinel-proxy/internal/policy"
 	redisclient "github.com/kayden-vs/sentinel-proxy/internal/redis"
 	"github.com/kayden-vs/sentinel-proxy/internal/threshold"
+	pb "github.com/kayden-vs/sentinel-proxy/proto/sentinel"
 )
 
 type Monitor struct {
@@ -42,7 +43,13 @@ type Monitor struct {
 }
 
 type StreamResult struct {
-	Outcome string
+	Outcome    string
+	Killed     bool
+	KillReason string
+	TotalBytes int64
+	ChunkCount int64
+	Duration   time.Duration
+	Throttled  bool
 }
 
 type MonitorConfig struct {
@@ -281,4 +288,104 @@ func (m *Monitor) hardKill(w http.ResponseWriter, reason string, result *StreamR
 	result.KillReason = reason
 	result.Outcome = "killed"
 	m.finalize(result)
+}
+
+func (m *Monitor) evaluateSoftBreach(ctx context.Context, reason string) enforceAction {
+	m.logger.Warn("SOFT BREACH detected",
+		"user_id", m.userID,
+		"reason", reason,
+		"total_bytes", m.totalBytes.Load(),
+		"allowed", m.decision.Allowed,
+		"endpoint", m.endpoint,
+	)
+
+	grade, violation, err := m.enforcer.Evaluate(ctx, m.userID)
+	if err != nil {
+		m.logger.Error("failed to evaluate enforcement grade", "error", err)
+	}
+
+	m.m.ViolationsByGrade.WithLabelValues(grade.String()).Inc()
+
+	m.logger.Warn("enforcement decision",
+		"user_id", m.userID,
+		"grade", grade.String(),
+		"violation_count", violation.Count,
+		"reason", reason,
+	)
+
+	switch grade {
+	case policy.GradeLogOnly:
+		m.logger.Warn("VIOLATION LOGGED (grace period)",
+			"user_id", m.userID,
+			"violation_count", violation.Count,
+		)
+		m.m.ThresholdDecisions.WithLabelValues("grace_log").Inc()
+		return enforceContinue
+
+	case policy.GradeThrottle:
+		m.logger.Warn("STREAM THROTTLED (repeated violation)",
+			"user_id", m.userID,
+			"violation_count", violation.Count,
+		)
+		m.m.ThresholdDecisions.WithLabelValues("grace_throttle").Inc()
+		return enforceThrottle
+
+	default:
+		m.logger.Error("STREAM TERMINATED (graduated enforcement)",
+			"user_id", m.userID,
+			"violation_count", violation.Count,
+		)
+		return enforceTerminate
+	}
+}
+
+// adaptiveDelay computes throttle delay
+func (m *Monitor) adaptiveDelay(currentBytes int64) time.Duration {
+	baseMs := m.cfg.Threshold.BaseThrottleDelayMs
+	maxMs := m.cfg.Threshold.MaxThrottleDelayMs
+	if baseMs <= 0 {
+		baseMs = 20
+	}
+	if maxMs <= 0 {
+		maxMs = 500
+	}
+
+	if m.decision.Allowed <= 0 {
+		return time.Duration(baseMs) * time.Millisecond
+	}
+
+	ratio := float64(currentBytes) / float64(m.decision.Allowed)
+	delayMs := float64(baseMs) * ratio
+
+	if delayMs > float64(maxMs) {
+		delayMs = float64(maxMs)
+	}
+	if delayMs < float64(baseMs) {
+		delayMs = float64(baseMs)
+	}
+
+	return time.Duration(delayMs) * time.Millisecond
+}
+
+func (m *Monitor) finalize(result *StreamResult) {
+	result.TotalBytes = m.totalBytes.Load()
+	result.ChunkCount = m.chunkCount.Load()
+	result.Duration = time.Since(m.startTime)
+	result.Throttled = m.throttled.Load()
+
+	if result.TotalBytes > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := m.redis.RecordRequest(ctx, m.userID, result.TotalBytes)
+		if err != nil {
+			m.logger.Error("failed to record request to Redis",
+				"user_id", m.userID,
+				"error", err,
+			)
+		}
+	}
+
+	outcome := result.Outcome
+	m.m.StreamDuration.WithLabelValues(m.endpoint, outcome).Observe(result.Duration.Seconds())
+	m.m.BytesPerRequest.WithLabelValues(m.endpoint).Observe(float64(result.TotalBytes))
 }
