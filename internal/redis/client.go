@@ -61,7 +61,7 @@ func NewClient(cfg config.RedisConfig) (*Client, error) {
 		windowSize:          cfg.WindowSize,
 		blendWeightWindow:   blendW,
 		blendWeightLifetime: blendL,
-	}, nil
+	}, nil 
 }
 // this function tracks every byte of data going out of the network.
 func (c *Client) RecordRequest(ctx context.Context, userID string, byteCount int64) (*BehaviorStats, error) {
