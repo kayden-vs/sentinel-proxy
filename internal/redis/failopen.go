@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/sentinel-proxy/sentinel-proxy/internal/config"
+	"github.com/kayden-vs/sentinel-proxy/internal/config"
 )
 
 type FailOpenClient struct {
