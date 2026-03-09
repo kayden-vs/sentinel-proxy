@@ -4,14 +4,6 @@
 
 Built for **DoubleSlash 4.0** — Cyber Security Track.
 
----
-
-## Demo Video
-
-https://drive.google.com/file/d/1sCVHzwE7AitDCNgoWd-4Y77v5Duwj92k/view?usp=sharing
-
----
-
 ## The Problem
 
 An insider or attacker with valid credentials opens a data API and starts streaming out your entire database. Traditional security tools (WAFs, DLP agents) inspect request/response payloads after the fact — by then, the data is already gone. There is no widely available, lightweight solution that can monitor and kill a data stream *mid-transfer* based on behavioral anomalies.
