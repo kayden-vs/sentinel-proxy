@@ -18,7 +18,7 @@ No ML models. No external SaaS dependencies. Just ~2,800 lines of Go.
 ## Architecture
 ![proxy Architecture](assets/diagram.png)
 
-## How It Works
+## How It Works(Simplified)
 
 ```
 Client  ──HTTP──▶  Sentinel Proxy  ──gRPC stream──▶  Backend
