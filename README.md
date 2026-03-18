@@ -2,15 +2,6 @@
 
 **Real-time streaming data exfiltration detection and prevention proxy.**
 
-Built for **DoubleSlash 4.0** — Cyber Security Track.
-
----
-
-## Demo Video
-
-https://drive.google.com/file/d/1sCVHzwE7AitDCNgoWd-4Y77v5Duwj92k/view?usp=sharing
-
----
 
 ## The Problem
 
