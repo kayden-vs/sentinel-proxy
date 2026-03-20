@@ -249,4 +249,4 @@ policies:
 
 ## Team
 
-Built by team at DoubleSlash 4.0 Hackathon.
+Built by team - Cloud9 at DoubleSlash 4.0 Hackathon.
